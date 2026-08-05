@@ -1,0 +1,32 @@
+---
+# PVC for EMQX runtime data (rules, auth, mnesia)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emqx-data
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: emqx
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.emqx.persistence.data.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.emqx.persistence.data.size }}
+---
+# PVC for EMQX runtime logs
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emqx-log
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: emqx
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.emqx.persistence.log.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.emqx.persistence.log.size }}

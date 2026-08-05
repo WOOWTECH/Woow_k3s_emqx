@@ -1,0 +1,85 @@
+---
+# Client-facing service: MQTT (TCP/SSL/WS/WSS) + dashboard HTTP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: emqx
+spec:
+  type: {{ .Values.emqx.service.type }}
+  selector:
+    app: emqx
+  ports:
+    - name: mqtt-tcp
+      port: 1883
+      targetPort: 1883
+      protocol: TCP
+      {{- if eq .Values.emqx.service.type "NodePort" }}
+      nodePort: {{ .Values.emqx.service.nodePort.mqttTcp }}
+      {{- end }}
+    - name: mqtt-ssl
+      port: 8883
+      targetPort: 8883
+      protocol: TCP
+      {{- if and (eq .Values.emqx.service.type "NodePort") .Values.emqx.service.nodePort_mqttSsl }}
+      nodePort: {{ .Values.emqx.service.nodePort_mqttSsl }}
+      {{- end }}
+    - name: mqtt-ws
+      port: 8083
+      targetPort: 8083
+      protocol: TCP
+      {{- if and (eq .Values.emqx.service.type "NodePort") .Values.emqx.service.nodePort_mqttWs }}
+      nodePort: {{ .Values.emqx.service.nodePort_mqttWs }}
+      {{- end }}
+    - name: mqtt-wss
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
+      {{- if and (eq .Values.emqx.service.type "NodePort") .Values.emqx.service.nodePort_mqttWss }}
+      nodePort: {{ .Values.emqx.service.nodePort_mqttWss }}
+      {{- end }}
+    - name: dashboard
+      port: 18083
+      targetPort: 18083
+      protocol: TCP
+      {{- if eq .Values.emqx.service.type "NodePort" }}
+      nodePort: {{ .Values.emqx.service.nodePort.dashboard }}
+      {{- end }}
+---
+# Headless service — gives each StatefulSet pod stable DNS
+# (emqx-0.emqx-headless.<ns>.svc.cluster.local) required by EMQX_NODE_NAME.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.emqx.headlessService.name }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: emqx
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: emqx
+  ports:
+    - name: mqtt-tcp
+      port: 1883
+      targetPort: 1883
+      protocol: TCP
+    - name: mqtt-ssl
+      port: 8883
+      targetPort: 8883
+      protocol: TCP
+    - name: mqtt-ws
+      port: 8083
+      targetPort: 8083
+      protocol: TCP
+    - name: mqtt-wss
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
+    - name: dashboard
+      port: 18083
+      targetPort: 18083
+      protocol: TCP

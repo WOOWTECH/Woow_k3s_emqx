@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emqx-config
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: emqx
+data:
+{{- range $key, $value := .Values.emqx.config }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}

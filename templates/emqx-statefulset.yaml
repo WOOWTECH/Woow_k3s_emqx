@@ -1,13 +1,15 @@
+---
+# EMQX MQTT broker — StatefulSet (preserves stable pod DNS for clustering).
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: emqx
-  namespace: emqx
+  namespace: {{ .Values.namespace.name }}
   labels:
     app: emqx
 spec:
-  serviceName: emqx-headless
-  replicas: 1
+  serviceName: {{ .Values.emqx.headlessService.name }}
+  replicas: {{ .Values.emqx.replicas }}
   selector:
     matchLabels:
       app: emqx
@@ -18,7 +20,8 @@ spec:
     spec:
       containers:
         - name: emqx
-          image: emqx/emqx:latest
+          image: "{{ .Values.emqx.image.repository }}:{{ .Values.emqx.image.tag }}"
+          imagePullPolicy: {{ .Values.emqx.image.pullPolicy }}
           ports:
             - name: mqtt-tcp
               containerPort: 1883
@@ -45,6 +48,7 @@ spec:
               mountPath: /opt/emqx/data
             - name: emqx-log
               mountPath: /opt/emqx/log
+          # ── Health checks ────────────────────────────────────────
           livenessProbe:
             exec:
               command:
@@ -75,13 +79,9 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 15
             failureThreshold: 30
+          # ── Resources ────────────────────────────────────────────
           resources:
-            requests:
-              memory: "256Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "1000m"
+            {{- toYaml .Values.emqx.resources | nindent 12 }}
       volumes:
         - name: emqx-data
           persistentVolumeClaim:

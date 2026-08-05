@@ -1,0 +1,23 @@
+apiVersion: v2
+name: emqx
+description: >-
+  EMQX MQTT broker on K3s/Kubernetes as a StatefulSet, with headless service
+  discovery, NodePort access for MQTT (TCP/SSL/WebSocket) and the EMQX
+  dashboard, and persistent storage for data and logs.
+type: application
+version: 1.0.0
+appVersion: "latest"
+kubeVersion: ">=1.24.0-0"
+keywords:
+  - emqx
+  - mqtt
+  - iot
+  - broker
+  - messaging
+home: https://github.com/WOOWTECH/Woow_k3s_emqx
+sources:
+  - https://github.com/WOOWTECH/Woow_k3s_emqx
+  - https://github.com/emqx/emqx
+maintainers:
+  - name: WoowTech
+    url: https://github.com/WOOWTECH

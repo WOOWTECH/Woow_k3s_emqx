@@ -1,0 +1,74 @@
+# Default values for the emqx chart.
+# Defaults reproduce the original Kustomize deployment 1:1
+# (namespace emqx, StatefulSet with headless service, NodePorts 31883/31808
+# for MQTT-TCP and dashboard, local-path storage).
+
+namespace:
+  # Create the target namespace as part of the release.
+  # Set to false if the namespace is managed elsewhere.
+  create: true
+  name: emqx
+
+emqx:
+  image:
+    repository: emqx/emqx
+    tag: latest
+    # "Always" matches the original manifests' behaviour with the
+    # :latest tag (Kubernetes defaults to Always for :latest).
+    pullPolicy: Always
+
+  # Number of EMQX replicas. Keep at 1 for the default single-node deploy;
+  # scale up only after configuring cluster discovery.
+  replicas: 1
+
+  # Exposed to the container via a ConfigMap (envFrom).
+  # EMQX_NODE_NAME must match the StatefulSet pod DNS so the node identity
+  # is stable across restarts.
+  config:
+    EMQX_NODE_NAME: "emqx@emqx-0.emqx-headless.emqx.svc.cluster.local"
+    EMQX_ALLOW_ANONYMOUS: "true"
+
+  service:
+    # Client-facing service (MQTT + dashboard).
+    type: NodePort
+    # NodePorts are only rendered when service.type is NodePort.
+    # nodePort_mqttTcp    -> 1883  (MQTT plain TCP)
+    # nodePort_dashboard  -> 18083 (dashboard HTTP)
+    nodePort:
+      mqttTcp: 31883
+      dashboard: 31808
+    # mqtt-ssl (8883), mqtt-ws (8083) and mqtt-wss (8084) are exposed as
+    # regular ports on the NodePort service without a fixed nodePort — a
+    # random one is assigned; set nodePort.mqttSsl / mqttWs / mqttWss below
+    # to pin them.
+    nodePort_mqttSsl: null
+    nodePort_mqttWs: null
+    nodePort_mqttWss: null
+
+  # Headless service for stable pod DNS (required by the StatefulSet).
+  headlessService:
+    name: emqx-headless
+
+  persistence:
+    # PVC for EMQX runtime data (rules, auth, mnesia).
+    data:
+      storageClassName: local-path
+      size: 5Gi
+    # PVC for EMQX logs.
+    log:
+      storageClassName: local-path
+      size: 2Gi
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+secrets:
+  # -- EMQX dashboard admin username
+  dashboardUsername: "admin"
+  # -- EMQX dashboard admin password (change before deploying)
+  dashboardPassword: "changeme_emqx_2024"

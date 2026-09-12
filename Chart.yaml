@@ -3,9 +3,11 @@ name: emqx
 description: >-
   EMQX MQTT broker on K3s/Kubernetes as a StatefulSet, with headless service
   discovery, NodePort access for MQTT (TCP/SSL/WebSocket) and the EMQX
-  dashboard, and persistent storage for data and logs.
+  dashboard, and persistent storage for data and logs. The EMQX MCP admin
+  console is a separate application deployed from WOOWTECH/Woow_emqx_mcp_server
+  (native manifests, not part of this chart).
 type: application
-version: 1.0.0
+version: 2.0.0
 appVersion: "latest"
 kubeVersion: ">=1.24.0-0"
 keywords:

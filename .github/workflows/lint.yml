@@ -1,0 +1,111 @@
+name: chart
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch: {}
+
+env:
+  # Dummy values only: exercises templates/secret.yaml without any real key.
+  SECRETS: secrets.create=true,secrets.dashboardPassword=x
+  KUBECONFORM_VERSION: v0.6.7
+  KUBECONFORM_SHA256: 95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.19.5
+
+      - name: helm lint
+        run: |
+          helm lint .
+          helm lint . --set "$SECRETS"
+
+      - name: helm template (every values combination)
+        run: |
+          mkdir -p /tmp/r
+          helm template emqx .                                                  > /tmp/r/default-ns.yaml
+          helm template emqx . -n emqx                                          > /tmp/r/production.yaml
+          helm template emqx . -n emqx --set "$SECRETS"                         > /tmp/r/secrets.yaml
+          helm template emqx . -n emqx --set "$SECRETS" --set keepOnUninstall=false > /tmp/r/no-keep.yaml
+          helm template emqx . -n emqx --set tests.enabled=false                > /tmp/r/minimal.yaml
+          helm template emqx . -n emqx --set emqx.service.type=ClusterIP        > /tmp/r/clusterip.yaml
+          # The shape of a test install: own namespace, disposable storage.
+          helm template emqx . -n ht-emqx \
+            --set namespace.name=ht-emqx,storageClassName=longhorn-delete \
+            --set "$SECRETS"                                                    > /tmp/r/test-install.yaml
+          wc -l /tmp/r/*.yaml
+
+      - name: Every template is tracked and renders
+        run: |
+          # An unanchored .gitignore pattern once kept templates/secrets.yaml
+          # out of git in a sibling chart; guard against the same mistake here.
+          for f in $(find templates -type f); do
+            if git check-ignore --no-index -q "$f"; then echo "::error::$f is matched by .gitignore"; exit 1; fi
+          done
+          for f in $(find templates -type f -name '*.yaml'); do
+            grep -q "^# Source: emqx/$f\$" /tmp/r/*.yaml || { echo "::error::$f never renders"; exit 1; }
+          done
+          echo "every template is tracked and renders"
+
+      - name: kubeconform (schema validation)
+        run: |
+          curl -sSLo /tmp/kc.tgz https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz
+          echo "${KUBECONFORM_SHA256}  /tmp/kc.tgz" | sha256sum -c -
+          tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
+          kubeconform -strict -summary /tmp/r/*.yaml
+
+      - name: Required secret is enforced
+        run: |
+          if helm template emqx . --set secrets.create=true > /dev/null 2>&1; then
+            echo "secrets.create=true rendered without secrets.dashboardPassword"; exit 1
+          fi
+          out=$(helm template emqx . -n emqx --set secrets.create=true 2>&1) || true
+          echo "$out" | grep -q "secrets.dashboardPassword is required" || { echo "::error::wrong error: $out"; exit 1; }
+          echo "required() guard fires"
+          # The Secret must render when the guard is satisfied; catches
+          # templates/secret.yaml going missing from git.
+          n=$(grep -c '^kind: Secret$' /tmp/r/secrets.yaml || true)
+          [ "$n" -eq 1 ] || { echo "expected 1 Secret with secrets.create=true, got $n"; exit 1; }
+          echo "secrets.create=true renders the Secret"
+
+      - name: Keep policy on Namespace, PVCs and the Secret
+        run: |
+          python3 - <<'EOF'
+          import sys, yaml
+          bad = []
+          def objs(f): return [d for d in yaml.safe_load_all(open(f)) if d]
+          for d in objs("/tmp/r/secrets.yaml") + objs("/tmp/r/default-ns.yaml"):
+              if d["kind"] in ("Namespace", "PersistentVolumeClaim", "Secret"):
+                  if (d["metadata"].get("annotations") or {}).get("helm.sh/resource-policy") != "keep":
+                      bad.append(f"{d['kind']}/{d['metadata']['name']} has no keep policy")
+          for d in objs("/tmp/r/production.yaml"):
+              if d["kind"] == "Namespace" and d["metadata"]["name"] == "emqx":
+                  bad.append("the release namespace must never be rendered")
+          sys.exit("\n".join(bad)) if bad else print("keep policy present; release namespace not rendered")
+          EOF
+
+      - name: No secrets committed
+        run: |
+          python3 - <<'EOF'
+          import glob, sys, yaml
+          bad = []
+          s = yaml.safe_load(open("values.yaml"))["secrets"]
+          if s.get("dashboardPassword"):
+              bad.append("values.yaml secrets.dashboardPassword must be empty")
+          for f in ("/tmp/r/production.yaml", "/tmp/r/default-ns.yaml"):
+              for d in yaml.safe_load_all(open(f)):
+                  if d and d["kind"] == "Secret":
+                      bad.append(f"{f} must not contain a Secret (secrets.create=false)")
+          for d in yaml.safe_load_all(open("examples/secrets.example.yaml")):
+              for k, v in ((d or {}).get("stringData") or {}).items():
+                  if k != "EMQX_DASHBOARD__DEFAULT_USERNAME" and "REPLACE_ME" not in str(v):
+                      bad.append(f"examples: {d['metadata']['name']}.{k} is not a placeholder")
+          sys.exit("\n".join(bad)) if bad else print("no secrets committed")
+          EOF

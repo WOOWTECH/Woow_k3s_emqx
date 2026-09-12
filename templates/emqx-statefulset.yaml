@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: emqx
-  namespace: {{ .Values.namespace.name }}
+  namespace: {{ include "emqx.ns" . }}
   labels:
     app: emqx
 spec:
@@ -18,6 +18,13 @@ spec:
       labels:
         app: emqx
     spec:
+      # The emqx/emqx image runs as uid/gid 1000 (non-root). fsGroup makes the
+      # PVC-backed volumes group-writable regardless of provisioner: local-path
+      # already creates world-writable hostPath dirs, but Longhorn (the
+      # required class for test installs) mounts them root-owned 0755, which
+      # fails with "Permission denied" on emqx-data/emqx-log without this.
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: emqx
           image: "{{ .Values.emqx.image.repository }}:{{ .Values.emqx.image.tag }}"

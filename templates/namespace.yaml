@@ -1,4 +1,9 @@
-{{- if .Values.namespace.create }}
+{{- /*
+Namespace. One that equals the release namespace is skipped: Helm keeps its
+release record there, so it is created with --create-namespace instead and
+can never be deleted by `helm uninstall`.
+*/ -}}
+{{- if and .Values.namespace.create (ne .Values.namespace.name .Release.Namespace) }}
 ---
 apiVersion: v1
 kind: Namespace
@@ -7,4 +12,5 @@ metadata:
   labels:
     app: emqx
     managed-by: helm
+  {{- include "emqx.keepAnnotations" . | nindent 2 }}
 {{- end }}

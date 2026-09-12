@@ -4,10 +4,31 @@
 # for MQTT-TCP and dashboard, local-path storage).
 
 namespace:
-  # Create the target namespace as part of the release.
-  # Set to false if the namespace is managed elsewhere.
+  # Render the Namespace object. A namespace equal to the release namespace
+  # (`-n`) is never rendered - create it with --create-namespace instead - so
+  # `helm uninstall` can never delete the namespace the release lives in.
   create: true
   name: emqx
+
+# Add `helm.sh/resource-policy: keep` to the Namespace, PVCs and the
+# chart-created Secret, so `helm uninstall` never deletes broker data or logs.
+keepOnUninstall: true
+
+# Default StorageClass for every PVC in this chart.
+storageClassName: local-path
+
+secrets:
+  # false (default): the emqx-secret Secret already exists (created from
+  #   examples/secrets.example.yaml) and the chart never renders it, so a
+  #   `helm upgrade` can never overwrite a real dashboard password with an
+  #   empty one.
+  # true: render emqx-secret from the values below (fresh installs, tests).
+  create: false
+  # Not sensitive on its own, so it keeps a real default even when
+  # secrets.create=true.
+  dashboardUsername: "admin"
+  # No default: required() fires when secrets.create=true and this is empty.
+  dashboardPassword: ""
 
 emqx:
   image:
@@ -32,15 +53,15 @@ emqx:
     # Client-facing service (MQTT + dashboard).
     type: NodePort
     # NodePorts are only rendered when service.type is NodePort.
-    # nodePort_mqttTcp    -> 1883  (MQTT plain TCP)
-    # nodePort_dashboard  -> 18083 (dashboard HTTP)
+    # nodePort.mqttTcp   -> 1883  (MQTT plain TCP)
+    # nodePort.dashboard -> 18083 (dashboard HTTP)
     nodePort:
       mqttTcp: 31883
       dashboard: 31808
     # mqtt-ssl (8883), mqtt-ws (8083) and mqtt-wss (8084) are exposed as
     # regular ports on the NodePort service without a fixed nodePort — a
-    # random one is assigned; set nodePort.mqttSsl / mqttWs / mqttWss below
-    # to pin them.
+    # random one is assigned; set nodePort_mqttSsl / nodePort_mqttWs /
+    # nodePort_mqttWss below to pin them.
     nodePort_mqttSsl: null
     nodePort_mqttWs: null
     nodePort_mqttWss: null
@@ -52,11 +73,13 @@ emqx:
   persistence:
     # PVC for EMQX runtime data (rules, auth, mnesia).
     data:
-      storageClassName: local-path
+      # "" = use the top-level storageClassName.
+      storageClassName: ""
       size: 5Gi
-    # PVC for EMQX logs.
+    # PVC for EMQX runtime logs.
     log:
-      storageClassName: local-path
+      # "" = use the top-level storageClassName.
+      storageClassName: ""
       size: 2Gi
 
   resources:
@@ -67,8 +90,7 @@ emqx:
       cpu: 1000m
       memory: 1Gi
 
-secrets:
-  # -- EMQX dashboard admin username
-  dashboardUsername: "admin"
-  # -- EMQX dashboard admin password (change before deploying)
-  dashboardPassword: "changeme_emqx_2024"
+tests:
+  # `helm test` smoke pod: dashboard /status, MQTT publish/subscribe
+  # round-trip. Read-only against the broker's own data.
+  enabled: true

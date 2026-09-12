@@ -1,0 +1,26 @@
+EMQX MQTT broker ({{ .Chart.AppVersion }}) - release {{ .Release.Name }}
+
+Namespace: {{ include "emqx.ns" . }}
+{{- if not .Values.secrets.create }}
+
+The dashboard Secret is NOT managed by this release (secrets.create=false).
+It must already exist: see examples/secrets.example.yaml.
+{{- end }}
+
+Wait for the broker to come up:
+  kubectl -n {{ include "emqx.ns" . }} rollout status statefulset/emqx --timeout=5m
+
+Verify:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- if eq .Values.emqx.service.type "NodePort" }}
+  curl -s http://<node-ip>:{{ .Values.emqx.service.nodePort.dashboard }}/status
+  mosquitto_pub -h <node-ip> -p {{ .Values.emqx.service.nodePort.mqttTcp }} -t test/topic -m hello
+{{- else }}
+
+  emqx.service.type is not NodePort: reach the broker in-cluster at
+  emqx.{{ include "emqx.ns" . }}.svc.cluster.local (1883 MQTT, 18083 dashboard)
+  or via your own Ingress/LoadBalancer.
+{{- end }}
+
+Change the dashboard password before any non-test deployment - see the
+"Change the dashboard password" section of README.md.

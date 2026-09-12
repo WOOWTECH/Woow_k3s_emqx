@@ -1,0 +1,54 @@
+{{- /*
+`helm test` smoke pod, read-only against the broker's own data:
+  - dashboard: GET /status on the client-facing Service (unauthenticated
+    node-status page, distinct from the authenticated /api/v5/* REST API)
+  - MQTT: an in-cluster client connects, subscribes and publishes a message
+    on a unique topic, then confirms the round-trip.
+Uses eclipse-mosquitto because it ships both `wget` (busybox) for the HTTP
+check and the mosquitto_pub/mosquitto_sub CLI clients for MQTT.
+*/ -}}
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-smoke
+  namespace: {{ include "emqx.ns" . }}
+  labels:
+    app: emqx
+    app.kubernetes.io/component: smoke-test
+  annotations:
+    helm.sh/hook: test
+    # Kept until the next `helm test` so `helm test --logs` can always read it.
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: eclipse-mosquitto:2.0.18
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+          echo "checking dashboard API (GET /status)..."
+          wget -q -T 15 -O- http://emqx:18083/status | grep -qi "is running"
+          echo "dashboard OK"
+
+          TOPIC="helm-test/$(date +%s)-$$"
+          MSG="helm-test-payload-$$"
+          echo "MQTT round-trip on topic $TOPIC ..."
+          mosquitto_sub -h emqx -p 1883 -i smoke-sub -t "$TOPIC" -C 1 -W 15 > /tmp/received.txt &
+          SUBPID=$!
+          sleep 2
+          mosquitto_pub -h emqx -p 1883 -i smoke-pub -t "$TOPIC" -m "$MSG"
+          wait "$SUBPID"
+          grep -qF "$MSG" /tmp/received.txt
+          echo "MQTT publish/subscribe OK"
+          echo "SMOKE OK"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 250m
+          memory: 128Mi
+{{- end }}

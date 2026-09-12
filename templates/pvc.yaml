@@ -4,13 +4,14 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: emqx-data
-  namespace: {{ .Values.namespace.name }}
+  namespace: {{ include "emqx.ns" . }}
   labels:
     app: emqx
+  {{- include "emqx.keepAnnotations" . | nindent 2 }}
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: {{ .Values.emqx.persistence.data.storageClassName }}
+  storageClassName: {{ include "emqx.storageClass" (list . .Values.emqx.persistence.data.storageClassName) }}
   resources:
     requests:
       storage: {{ .Values.emqx.persistence.data.size }}
@@ -20,13 +21,14 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: emqx-log
-  namespace: {{ .Values.namespace.name }}
+  namespace: {{ include "emqx.ns" . }}
   labels:
     app: emqx
+  {{- include "emqx.keepAnnotations" . | nindent 2 }}
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: {{ .Values.emqx.persistence.log.storageClassName }}
+  storageClassName: {{ include "emqx.storageClass" (list . .Values.emqx.persistence.log.storageClassName) }}
   resources:
     requests:
       storage: {{ .Values.emqx.persistence.log.size }}

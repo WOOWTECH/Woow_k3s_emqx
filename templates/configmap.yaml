@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: emqx-config
-  namespace: {{ .Values.namespace.name }}
+  namespace: {{ include "emqx.ns" . }}
   labels:
     app: emqx
 data:

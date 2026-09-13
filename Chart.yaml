@@ -7,7 +7,7 @@ description: >-
   console is a separate application deployed from WOOWTECH/Woow_emqx_mcp_server
   (native manifests, not part of this chart).
 type: application
-version: 2.0.0
+version: 2.1.0
 appVersion: "latest"
 kubeVersion: ">=1.24.0-0"
 keywords:

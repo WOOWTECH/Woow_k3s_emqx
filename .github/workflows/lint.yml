@@ -40,6 +40,11 @@ jobs:
           helm template emqx . -n ht-emqx \
             --set namespace.name=ht-emqx,storageClassName=longhorn-delete \
             --set "$SECRETS"                                                    > /tmp/r/test-install.yaml
+            # namespace.name defaults to "" so `-n` wins, which means the Namespace
+            # object is never rendered by the combinations above (a release cannot own
+            # the namespace it lives in). Render it explicitly, or the "every template
+            # renders" guard below fails on templates/namespace.yaml.
+            helm template emqx . -n release-ns --set namespace.create=true --set namespace.name=emqx-elsewhere  > /tmp/r/other-ns.yaml
           wc -l /tmp/r/*.yaml
 
       - name: Every template is tracked and renders
